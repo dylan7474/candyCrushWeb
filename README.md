@@ -40,7 +40,7 @@ To use a different port, pass it as the first argument:
 
 - **Select + swap**: Click/tap one gem, then an adjacent gem to attempt a swap.
 - **Valid match**: If the swap forms a line of 3+, those gems clear and new gems fall in.
-- **Scramble bombs**: Special explosive tokens appear occasionally; they only detonate when the swap also creates a valid 3+ match.
+- **Scramble bombs**: Special explosive tokens appear occasionally; they count as wildcards in 3+ lines and detonate when they participate in a valid match.
 - **Invalid move**: If no match is created, the swap is reverted.
 - **No-move safety**: If the board has no possible swaps left, it automatically scrambles into a playable layout.
 - **Reset Game**: Starts a new game at any time.
