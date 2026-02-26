@@ -344,15 +344,18 @@
                     moves--;
                     movesEl.textContent = moves;
                     
-                    const triggeredBombs = [];
-                    if (board[selectedGem.r][selectedGem.c].type === BOMB_TYPE) {
-                        triggeredBombs.push({ r: selectedGem.r, c: selectedGem.c });
-                    }
-                    if (board[r][c].type === BOMB_TYPE) {
-                        triggeredBombs.push({ r, c });
-                    }
                     const matches = checkMatches();
-                    if (triggeredBombs.length > 0 || matches.length > 0) {
+                    const triggeredBombs = [];
+                    if (matches.length > 0) {
+                        if (board[selectedGem.r][selectedGem.c].type === BOMB_TYPE) {
+                            triggeredBombs.push({ r: selectedGem.r, c: selectedGem.c });
+                        }
+                        if (board[r][c].type === BOMB_TYPE) {
+                            triggeredBombs.push({ r, c });
+                        }
+                    }
+
+                    if (matches.length > 0) {
                         await processMatches(triggeredBombs);
                     } else {
                         // Undo swap if no match
