@@ -42,11 +42,12 @@ To use a different port, pass it as the first argument:
 - **Valid match**: If the swap forms a line of 3+, those gems clear and new gems fall in.
 - **Invalid move**: If no match is created, the swap is reverted.
 - **Reset Game**: Starts a new game at any time.
+- **Sound: On/Off**: Toggles punchy synthesized sound effects for swaps, matches, cascades, and game over.
 - **Play Again**: Appears after game over to restart with fresh moves and score.
 
 ## Short roadmap
 
-- Add optional sound effects and music toggles.
+- Add optional background music toggle to complement the new SFX.
 - Add combo indicators and multiplier scoring.
 - Add power-up gems for 4- and 5-match patterns.
 - Add level goals/timed mode beyond the current move-limited mode.

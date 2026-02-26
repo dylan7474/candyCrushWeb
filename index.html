@@ -140,6 +140,9 @@
         <button id="reset-btn" class="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-full transition-all border border-white/10">
             Reset Game
         </button>
+        <button id="sound-btn" class="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-full transition-all border border-white/10">
+            Sound: On
+        </button>
     </div>
 
     <!-- Win/Loss Overlay -->
@@ -191,6 +194,76 @@
         const overlay = document.getElementById('overlay');
         const restartBtn = document.getElementById('restart-btn');
         const resetBtn = document.getElementById('reset-btn');
+        const soundBtn = document.getElementById('sound-btn');
+
+        const SFX = {
+            enabled: true,
+            context: null,
+            init() {
+                if (this.context) return;
+                const AudioContextRef = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextRef) {
+                    this.enabled = false;
+                    soundBtn.textContent = 'Sound: N/A';
+                    return;
+                }
+                this.context = new AudioContextRef();
+            },
+            async unlock() {
+                if (!this.enabled) return;
+                this.init();
+                if (this.context?.state === 'suspended') {
+                    await this.context.resume();
+                }
+            },
+            beep({ type = 'sine', frequency = 440, duration = 0.12, volume = 0.08, attack = 0.005, decay = 0.14, sweep = 0 }) {
+                if (!this.enabled || !this.context) return;
+                const now = this.context.currentTime;
+                const osc = this.context.createOscillator();
+                const gain = this.context.createGain();
+
+                osc.type = type;
+                osc.frequency.setValueAtTime(frequency, now);
+                if (sweep) {
+                    osc.frequency.exponentialRampToValueAtTime(Math.max(50, frequency + sweep), now + duration);
+                }
+
+                gain.gain.setValueAtTime(0.0001, now);
+                gain.gain.exponentialRampToValueAtTime(volume, now + attack);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + decay);
+
+                osc.connect(gain);
+                gain.connect(this.context.destination);
+                osc.start(now);
+                osc.stop(now + duration);
+            },
+            playSwap() {
+                this.beep({ type: 'triangle', frequency: 280, sweep: 140, duration: 0.11, volume: 0.06, decay: 0.11 });
+            },
+            playInvalid() {
+                this.beep({ type: 'sawtooth', frequency: 210, sweep: -80, duration: 0.16, volume: 0.05, decay: 0.15 });
+            },
+            playMatch(size = 3, chain = 0) {
+                const base = 420 + Math.min(chain, 6) * 50;
+                const power = Math.min(size / 3, 2);
+                this.beep({ type: 'square', frequency: base, sweep: 180, duration: 0.12, volume: 0.07 + (power * 0.01), decay: 0.12 });
+                setTimeout(() => {
+                    this.beep({ type: 'triangle', frequency: base + 180, sweep: 220, duration: 0.12, volume: 0.05 + (power * 0.01), decay: 0.12 });
+                }, 70);
+            },
+            playCascade(depth = 1) {
+                this.beep({ type: 'sine', frequency: 240 + depth * 20, sweep: 60 + depth * 20, duration: 0.15, volume: 0.04, decay: 0.15 });
+            },
+            playGameOver(finalScore = 0) {
+                const bonus = Math.min(Math.floor(finalScore / 100), 6);
+                this.beep({ type: 'triangle', frequency: 320 + bonus * 10, sweep: -120, duration: 0.25, volume: 0.08, decay: 0.22 });
+                setTimeout(() => this.beep({ type: 'triangle', frequency: 240, sweep: -100, duration: 0.3, volume: 0.07, decay: 0.26 }), 140);
+            },
+            toggle() {
+                this.enabled = !this.enabled;
+                soundBtn.textContent = `Sound: ${this.enabled ? 'On' : 'Off'}`;
+            }
+        };
 
         function initGame() {
             score = 0;
@@ -240,6 +313,7 @@
 
         async function handleGemClick(r, c) {
             if (isAnimating || moves <= 0) return;
+            await SFX.unlock();
 
             const clickedGem = board[r][c];
 
@@ -252,6 +326,7 @@
 
                 if ((rDiff === 1 && cDiff === 0) || (rDiff === 0 && cDiff === 1)) {
                     // Valid neighbor swap
+                    SFX.playSwap();
                     await swapGems(selectedGem.r, selectedGem.c, r, c);
                     moves--;
                     movesEl.textContent = moves;
@@ -261,6 +336,7 @@
                         await processMatches();
                     } else {
                         // Undo swap if no match
+                        SFX.playInvalid();
                         await swapGems(selectedGem.r, selectedGem.c, r, c);
                     }
 
@@ -348,6 +424,7 @@
         async function processMatches() {
             isAnimating = true;
             let totalMatchesFound = true;
+            let chainDepth = 0;
 
             while (totalMatchesFound) {
                 const matches = checkMatches();
@@ -355,6 +432,7 @@
                     totalMatchesFound = false;
                     break;
                 }
+                chainDepth++;
 
                 // 1. Mark and animate removal
                 matches.forEach(m => {
@@ -368,6 +446,7 @@
                 score += comboScore;
                 scoreEl.textContent = score;
                 showScorePop(matches[0].r, matches[0].c, comboScore);
+                SFX.playMatch(matches.length, chainDepth - 1);
 
                 await new Promise(r => setTimeout(r, 300));
 
@@ -400,6 +479,7 @@
                 }
 
                 await new Promise(r => setTimeout(r, 400));
+                SFX.playCascade(chainDepth);
                 
                 // Finalize DOM update
                 for (let r = 0; r < GRID_SIZE; r++) {
@@ -448,12 +528,17 @@
         }
 
         function endGame() {
+            SFX.playGameOver(score);
             document.getElementById('overlay-msg').textContent = `Final Score: ${score}`;
             overlay.classList.remove('hidden');
         }
 
         restartBtn.addEventListener('click', initGame);
         resetBtn.addEventListener('click', initGame);
+        soundBtn.addEventListener('click', async () => {
+            await SFX.unlock();
+            SFX.toggle();
+        });
 
         window.onload = initGame;
     </script>
