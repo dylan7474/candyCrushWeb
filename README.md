@@ -1,1 +1,38 @@
-# candyCrushWeb
+# Crystal Cascade (candyCrushWeb)
+
+Crystal Cascade is a browser-based match-3 puzzle game inspired by Candy Crush-style gameplay. Swap adjacent gems to make matches of 3 or more, trigger cascades, and earn as many points as possible before you run out of moves.
+
+## What this application is
+
+- A single-page, front-end-only web game built in plain HTML, CSS, and JavaScript.
+- A responsive 8x8 gem board with animated swaps, clears, and falling pieces.
+- A score-and-moves challenge loop with reset/restart controls.
+
+## Build / Run instructions
+
+No build step is required.
+
+1. Clone this repository.
+2. Open `index.html` directly in a browser, **or** run a small local static server:
+
+```bash
+python3 -m http.server 8080
+```
+
+Then visit `http://localhost:8080`.
+
+## Basic controls
+
+- **Select + swap**: Click/tap one gem, then an adjacent gem to attempt a swap.
+- **Valid match**: If the swap forms a line of 3+, those gems clear and new gems fall in.
+- **Invalid move**: If no match is created, the swap is reverted.
+- **Reset Game**: Starts a new game at any time.
+- **Play Again**: Appears after game over to restart with fresh moves and score.
+
+## Short roadmap
+
+- Add optional sound effects and music toggles.
+- Add combo indicators and multiplier scoring.
+- Add power-up gems for 4- and 5-match patterns.
+- Add level goals/timed mode beyond the current move-limited mode.
+- Add persistent high scores using local storage.
