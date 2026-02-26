@@ -344,10 +344,16 @@
                     moves--;
                     movesEl.textContent = moves;
                     
-                    const swappedHasBomb = board[selectedGem.r][selectedGem.c].type === BOMB_TYPE || board[r][c].type === BOMB_TYPE;
+                    const triggeredBombs = [];
+                    if (board[selectedGem.r][selectedGem.c].type === BOMB_TYPE) {
+                        triggeredBombs.push({ r: selectedGem.r, c: selectedGem.c });
+                    }
+                    if (board[r][c].type === BOMB_TYPE) {
+                        triggeredBombs.push({ r, c });
+                    }
                     const matches = checkMatches();
-                    if (swappedHasBomb || matches.length > 0) {
-                        await processMatches();
+                    if (triggeredBombs.length > 0 || matches.length > 0) {
+                        await processMatches(triggeredBombs);
                     } else {
                         // Undo swap if no match
                         SFX.playInvalid();
@@ -406,18 +412,8 @@
             });
         }
 
-        function checkMatches(includeBombs = true) {
+        function checkMatches() {
             let matchedIndices = new Set();
-
-            if (includeBombs) {
-                for (let r = 0; r < GRID_SIZE; r++) {
-                    for (let c = 0; c < GRID_SIZE; c++) {
-                        if (board[r][c].type === BOMB_TYPE) {
-                            matchedIndices.add(`${r},${c}`);
-                        }
-                    }
-                }
-            }
 
             // Horizontal
             for (let r = 0; r < GRID_SIZE; r++) {
@@ -449,34 +445,44 @@
             });
         }
 
-        async function processMatches() {
+        async function processMatches(triggeredBombs = []) {
             isAnimating = true;
             let totalMatchesFound = true;
             let chainDepth = 0;
-            let scrambleTriggered = false;
+            let pendingBombs = triggeredBombs;
 
             while (totalMatchesFound) {
                 const matches = checkMatches();
-                if (matches.length === 0) {
+                const matchedIndices = new Set(matches.map(m => `${m.r},${m.c}`));
+                const activeBombs = pendingBombs.filter(({ r, c }) => board[r][c].type === BOMB_TYPE);
+                activeBombs.forEach(({ r, c }) => matchedIndices.add(`${r},${c}`));
+
+                const allMatches = Array.from(matchedIndices).map(s => {
+                    const [r, c] = s.split(',').map(Number);
+                    return { r, c };
+                });
+                pendingBombs = [];
+
+                if (allMatches.length === 0) {
                     totalMatchesFound = false;
                     break;
                 }
                 chainDepth++;
-                const bombTriggered = matches.some(m => board[m.r][m.c].type === BOMB_TYPE);
+                const bombTriggered = activeBombs.length > 0;
 
                 // 1. Mark and animate removal
-                matches.forEach(m => {
+                allMatches.forEach(m => {
                     const gem = board[m.r][m.c];
                     gem.el.classList.add('clearing');
                     createParticles(m.r, m.c, COLORS[gem.type]);
                 });
 
                 // Score update
-                const comboScore = matches.length * 10;
+                const comboScore = allMatches.length * 10;
                 score += comboScore;
                 scoreEl.textContent = score;
-                showScorePop(matches[0].r, matches[0].c, comboScore);
-                SFX.playMatch(matches.length, chainDepth - 1);
+                showScorePop(allMatches[0].r, allMatches[0].c, comboScore);
+                SFX.playMatch(allMatches.length, chainDepth - 1);
 
                 await new Promise(r => setTimeout(r, 300));
 
@@ -484,7 +490,7 @@
                 for (let c = 0; c < GRID_SIZE; c++) {
                     let emptySlots = 0;
                     for (let r = GRID_SIZE - 1; r >= 0; r--) {
-                        const isMatched = matches.some(m => m.r === r && m.c === c);
+                        const isMatched = matchedIndices.has(`${r},${c}`);
                         if (isMatched) {
                             emptySlots++;
                         } else if (emptySlots > 0) {
@@ -521,12 +527,7 @@
                 }
 
                 if (bombTriggered) {
-                    scrambleTriggered = true;
-                }
-
-                if (scrambleTriggered) {
                     await triggerScramble(chainDepth);
-                    scrambleTriggered = false;
                 }
             }
             isAnimating = false;
@@ -566,7 +567,7 @@
                     }
                 }
 
-                playable = checkMatches(false).length === 0 && hasPossibleMoves();
+                playable = checkMatches().length === 0 && hasPossibleMoves();
             }
         }
 
