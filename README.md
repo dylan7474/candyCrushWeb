@@ -21,6 +21,21 @@ python3 -m http.server 8080
 
 Then visit `http://localhost:8080`.
 
+
+## Docker deploy script
+
+A helper script is included to build and run the game in Docker on port `3011` by default:
+
+```bash
+./deploy.sh
+```
+
+To use a different port, pass it as the first argument:
+
+```bash
+./deploy.sh 4000
+```
+
 ## Basic controls
 
 - **Select + swap**: Click/tap one gem, then an adjacent gem to attempt a swap.
