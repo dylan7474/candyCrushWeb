@@ -415,17 +415,25 @@
             });
         }
 
+        function isMatchWindow(types) {
+            const nonBombTypes = types.filter(type => type !== BOMB_TYPE);
+            if (nonBombTypes.length === 0) {
+                return true;
+            }
+            return new Set(nonBombTypes).size === 1;
+        }
+
         function checkMatches() {
             let matchedIndices = new Set();
 
             // Horizontal
             for (let r = 0; r < GRID_SIZE; r++) {
                 for (let c = 0; c < GRID_SIZE - 2; c++) {
-                    const type = board[r][c].type;
-                    if (type !== BOMB_TYPE && type === board[r][c+1].type && type === board[r][c+2].type) {
+                    const types = [board[r][c].type, board[r][c + 1].type, board[r][c + 2].type];
+                    if (isMatchWindow(types)) {
                         matchedIndices.add(`${r},${c}`);
-                        matchedIndices.add(`${r},${c+1}`);
-                        matchedIndices.add(`${r},${c+2}`);
+                        matchedIndices.add(`${r},${c + 1}`);
+                        matchedIndices.add(`${r},${c + 2}`);
                     }
                 }
             }
@@ -433,11 +441,11 @@
             // Vertical
             for (let c = 0; c < GRID_SIZE; c++) {
                 for (let r = 0; r < GRID_SIZE - 2; r++) {
-                    const type = board[r][c].type;
-                    if (type !== BOMB_TYPE && type === board[r+1][c].type && type === board[r+2][c].type) {
+                    const types = [board[r][c].type, board[r + 1][c].type, board[r + 2][c].type];
+                    if (isMatchWindow(types)) {
                         matchedIndices.add(`${r},${c}`);
-                        matchedIndices.add(`${r+1},${c}`);
-                        matchedIndices.add(`${r+2},${c}`);
+                        matchedIndices.add(`${r + 1},${c}`);
+                        matchedIndices.add(`${r + 2},${c}`);
                     }
                 }
             }
@@ -599,10 +607,6 @@
             const a = board[r1][c1].type;
             const b = board[r2][c2].type;
 
-            if (a === BOMB_TYPE || b === BOMB_TYPE) {
-                return true;
-            }
-
             board[r1][c1].type = b;
             board[r2][c2].type = a;
             const hasMatch = hasMatchAt(r1, c1) || hasMatchAt(r2, c2);
@@ -613,18 +617,21 @@
         }
 
         function hasMatchAt(r, c) {
-            const type = board[r][c].type;
-            if (type === BOMB_TYPE) return false;
+            for (let startC = Math.max(0, c - 2); startC <= Math.min(c, GRID_SIZE - 3); startC++) {
+                const types = [board[r][startC].type, board[r][startC + 1].type, board[r][startC + 2].type];
+                if (isMatchWindow(types)) {
+                    return true;
+                }
+            }
 
-            let count = 1;
-            for (let dc = c - 1; dc >= 0 && board[r][dc].type === type; dc--) count++;
-            for (let dc = c + 1; dc < GRID_SIZE && board[r][dc].type === type; dc++) count++;
-            if (count >= 3) return true;
+            for (let startR = Math.max(0, r - 2); startR <= Math.min(r, GRID_SIZE - 3); startR++) {
+                const types = [board[startR][c].type, board[startR + 1][c].type, board[startR + 2][c].type];
+                if (isMatchWindow(types)) {
+                    return true;
+                }
+            }
 
-            count = 1;
-            for (let dr = r - 1; dr >= 0 && board[dr][c].type === type; dr--) count++;
-            for (let dr = r + 1; dr < GRID_SIZE && board[dr][c].type === type; dr++) count++;
-            return count >= 3;
+            return false;
         }
 
         function createParticles(r, c, color) {
