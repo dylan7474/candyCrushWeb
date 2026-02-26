@@ -156,7 +156,10 @@
 
     <script>
         const GRID_SIZE = 8;
-        const GEM_TYPES = 6;
+        const BASE_GEM_TYPES = 6;
+        const BOMB_TYPE = BASE_GEM_TYPES;
+        const GEM_TYPES = BASE_GEM_TYPES + 1;
+        const BOMB_SPAWN_CHANCE = 0.08;
         const COLORS = [
             '#ef4444', // Red (Heart)
             '#3b82f6', // Blue (Diamond)
@@ -179,7 +182,9 @@
             // Hexagon (Purple)
             `<svg viewBox="0 0 100 100"><path fill="#a855f7" d="M25 15L75 15L100 50L75 85L25 85L0 50Z"/></svg>`,
             // Circle (Pink)
-            `<svg viewBox="0 0 100 100"><circle fill="#ec4899" cx="50" cy="50" r="40"/></svg>`
+            `<svg viewBox="0 0 100 100"><circle fill="#ec4899" cx="50" cy="50" r="40"/></svg>`,
+            // Scramble Bomb
+            `<svg viewBox="0 0 100 100"><defs><radialGradient id="bombGlow" cx="50%" cy="45%" r="55%"><stop offset="0%" stop-color="#fde68a"/><stop offset="70%" stop-color="#f97316"/><stop offset="100%" stop-color="#7c2d12"/></radialGradient></defs><circle cx="50" cy="50" r="34" fill="url(#bombGlow)"/><path fill="#111827" d="M50 18c2.8 0 5 2.2 5 5v9h8c2.8 0 5 2.2 5 5s-2.2 5-5 5h-8v8c0 2.8-2.2 5-5 5s-5-2.2-5-5v-8h-8c-2.8 0-5-2.2-5-5s2.2-5 5-5h8v-9c0-2.8 2.2-5 5-5z"/></svg>`
         ];
 
         let board = [];
@@ -284,10 +289,10 @@
                     let type;
                     // Ensure no initial matches
                     do {
-                        type = Math.floor(Math.random() * GEM_TYPES);
+                        type = randomGemType();
                     } while (
                         (r >= 2 && board[r-1][c].type === type && board[r-2][c].type === type) ||
-                        (c >= 2 && board[r][c-1].type === type && board[r][c-2][c]?.type === type)
+                        (c >= 2 && board[r][c-1].type === type && board[r][c-2].type === type)
                     );
 
                     const cell = document.createElement('div');
@@ -309,6 +314,14 @@
                     boardEl.appendChild(cell);
                 }
             }
+
+            if (!hasPossibleMoves()) {
+                scrambleBoard();
+            }
+        }
+
+        function randomGemType() {
+            return Math.random() < BOMB_SPAWN_CHANCE ? BOMB_TYPE : Math.floor(Math.random() * BASE_GEM_TYPES);
         }
 
         async function handleGemClick(r, c) {
@@ -331,8 +344,9 @@
                     moves--;
                     movesEl.textContent = moves;
                     
+                    const swappedHasBomb = board[selectedGem.r][selectedGem.c].type === BOMB_TYPE || board[r][c].type === BOMB_TYPE;
                     const matches = checkMatches();
-                    if (matches.length > 0) {
+                    if (swappedHasBomb || matches.length > 0) {
                         await processMatches();
                     } else {
                         // Undo swap if no match
@@ -340,7 +354,11 @@
                         await swapGems(selectedGem.r, selectedGem.c, r, c);
                     }
 
-                    if (moves <= 0) endGame();
+                    if (moves <= 0) {
+                        endGame();
+                    } else {
+                        await ensurePlayableBoard();
+                    }
                 }
 
                 // Deselect
@@ -388,14 +406,24 @@
             });
         }
 
-        function checkMatches() {
+        function checkMatches(includeBombs = true) {
             let matchedIndices = new Set();
+
+            if (includeBombs) {
+                for (let r = 0; r < GRID_SIZE; r++) {
+                    for (let c = 0; c < GRID_SIZE; c++) {
+                        if (board[r][c].type === BOMB_TYPE) {
+                            matchedIndices.add(`${r},${c}`);
+                        }
+                    }
+                }
+            }
 
             // Horizontal
             for (let r = 0; r < GRID_SIZE; r++) {
                 for (let c = 0; c < GRID_SIZE - 2; c++) {
                     const type = board[r][c].type;
-                    if (type === board[r][c+1].type && type === board[r][c+2].type) {
+                    if (type !== BOMB_TYPE && type === board[r][c+1].type && type === board[r][c+2].type) {
                         matchedIndices.add(`${r},${c}`);
                         matchedIndices.add(`${r},${c+1}`);
                         matchedIndices.add(`${r},${c+2}`);
@@ -407,7 +435,7 @@
             for (let c = 0; c < GRID_SIZE; c++) {
                 for (let r = 0; r < GRID_SIZE - 2; r++) {
                     const type = board[r][c].type;
-                    if (type === board[r+1][c].type && type === board[r+2][c].type) {
+                    if (type !== BOMB_TYPE && type === board[r+1][c].type && type === board[r+2][c].type) {
                         matchedIndices.add(`${r},${c}`);
                         matchedIndices.add(`${r+1},${c}`);
                         matchedIndices.add(`${r+2},${c}`);
@@ -425,6 +453,7 @@
             isAnimating = true;
             let totalMatchesFound = true;
             let chainDepth = 0;
+            let scrambleTriggered = false;
 
             while (totalMatchesFound) {
                 const matches = checkMatches();
@@ -433,6 +462,7 @@
                     break;
                 }
                 chainDepth++;
+                const bombTriggered = matches.some(m => board[m.r][m.c].type === BOMB_TYPE);
 
                 // 1. Mark and animate removal
                 matches.forEach(m => {
@@ -474,7 +504,7 @@
 
                     // Fill new gems at top
                     for (let r = 0; r < emptySlots; r++) {
-                        board[r][c].type = Math.floor(Math.random() * GEM_TYPES);
+                        board[r][c].type = randomGemType();
                     }
                 }
 
@@ -489,8 +519,108 @@
                         board[r][c].el.classList.remove('clearing', 'falling');
                     }
                 }
+
+                if (bombTriggered) {
+                    scrambleTriggered = true;
+                }
+
+                if (scrambleTriggered) {
+                    await triggerScramble(chainDepth);
+                    scrambleTriggered = false;
+                }
             }
             isAnimating = false;
+        }
+
+        async function triggerScramble(chainDepth = 1) {
+            SFX.playCascade(chainDepth + 1);
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const gem = board[r][c];
+                    createParticles(r, c, COLORS[Math.floor(Math.random() * BASE_GEM_TYPES)]);
+                    gem.el.classList.add('swapping');
+                    gem.el.style.transform = `translate(${(Math.random() - 0.5) * 24}px, ${(Math.random() - 0.5) * 24}px) rotate(${(Math.random() - 0.5) * 18}deg)`;
+                }
+            }
+
+            await new Promise(r => setTimeout(r, 260));
+            scrambleBoard();
+
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const gem = board[r][c];
+                    gem.el.innerHTML = GEM_SVGS[gem.type];
+                    gem.el.style.transform = '';
+                    gem.el.classList.remove('swapping');
+                }
+            }
+        }
+
+        function scrambleBoard() {
+            let playable = false;
+
+            while (!playable) {
+                for (let r = 0; r < GRID_SIZE; r++) {
+                    for (let c = 0; c < GRID_SIZE; c++) {
+                        board[r][c].type = randomGemType();
+                    }
+                }
+
+                playable = checkMatches(false).length === 0 && hasPossibleMoves();
+            }
+        }
+
+        async function ensurePlayableBoard() {
+            if (hasPossibleMoves()) return;
+            isAnimating = true;
+            await triggerScramble(1);
+            isAnimating = false;
+        }
+
+        function hasPossibleMoves() {
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    if (c + 1 < GRID_SIZE && wouldCreateMatch(r, c, r, c + 1)) {
+                        return true;
+                    }
+                    if (r + 1 < GRID_SIZE && wouldCreateMatch(r, c, r + 1, c)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function wouldCreateMatch(r1, c1, r2, c2) {
+            const a = board[r1][c1].type;
+            const b = board[r2][c2].type;
+
+            if (a === BOMB_TYPE || b === BOMB_TYPE) {
+                return true;
+            }
+
+            board[r1][c1].type = b;
+            board[r2][c2].type = a;
+            const hasMatch = hasMatchAt(r1, c1) || hasMatchAt(r2, c2);
+            board[r1][c1].type = a;
+            board[r2][c2].type = b;
+
+            return hasMatch;
+        }
+
+        function hasMatchAt(r, c) {
+            const type = board[r][c].type;
+            if (type === BOMB_TYPE) return false;
+
+            let count = 1;
+            for (let dc = c - 1; dc >= 0 && board[r][dc].type === type; dc--) count++;
+            for (let dc = c + 1; dc < GRID_SIZE && board[r][dc].type === type; dc++) count++;
+            if (count >= 3) return true;
+
+            count = 1;
+            for (let dr = r - 1; dr >= 0 && board[dr][c].type === type; dr--) count++;
+            for (let dr = r + 1; dr < GRID_SIZE && board[dr][c].type === type; dr++) count++;
+            return count >= 3;
         }
 
         function createParticles(r, c, color) {
